@@ -1,8 +1,14 @@
+import os
+import sqlite3
 import requests
 import pandas as pd
 import warnings
+from dotenv import load_dotenv
 
 warnings.filterwarnings('ignore')
+
+load_dotenv(dotenv_path="config/.env")
+database_path = str(os.getenv("DATABASE_NAME"))
 
 
 class MultiStockDataFrame:
@@ -129,17 +135,36 @@ class MultiStockDataFrame:
             print("There is no data!")
             return None
 
+    def create_database(self, db_path, sql):
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        with open(sql, "r") as sql_code:
+            sql_script = sql_code.read()
+            cursor.executescript(sql_script)
+
+        conn.commit()
+        conn.close()
+
     def save_to_csv(self, df):
         """Save DataFrame to a CSV file"""
         if df is None or df.empty:
             print("There is no data!")
             return
 
-        df.to_csv("all_datas.csv", index=False, float_format='%.3f')
+        df.to_csv("data/automotive_stocks.csv", index=False, float_format='%.3f')
+
+    def save_to_sql(self, df, db_path, table_name="Stocks"):
+        """Save DataFrame into SQLite database table"""
+        conn = sqlite3.connect(db_path)
+        df.to_sql(name=table_name, con=conn, if_exists="replace", index=False)
 
 
 def main():
     multi_fetcher = MultiStockDataFrame()
+
+    # Creating sqlite database
+    multi_fetcher.create_database(database_path, "data/automotive.sql")
 
     # BIST Automotive Companies
     stock_symbols = [
@@ -156,8 +181,9 @@ def main():
     combined_df = multi_fetcher.create_combined_dataframe(stock_symbols, period="5y")
 
     if combined_df is not None:
-        # Save to CSV
+        """Save to CSV file and SQLite Database Table"""
         multi_fetcher.save_to_csv(combined_df)
+        multi_fetcher.save_to_sql(combined_df, database_path)
 
 
 if __name__ == "__main__":
